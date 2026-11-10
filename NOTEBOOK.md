@@ -1,0 +1,13 @@
+Phase 1:
+- WSL:
+    - windows subsystem for linux
+    - let users run a real linux kernel directly inside Windows
+- Hypervisor:
+    - a software (lie between hardware and operating system) that can create and run VMs by splitting the current computer's resources into multiple isolated environments. 
+- WSL and shared VMs give misleading timing for a job:
+    - example job: getting time from CPU:
+        - modern CPU has a register and an instruction (RDTSC) to track time.
+            - taking time from CPU usually takes 50 clock cycles.
+        - apps on VMs can not just simply directly ask for time from the CPU, instead; they need to use a round-way with the help from hypervisor.
+            - and this round way can take 1200 - 2000 clock cycles.
+            - --> the timing of the job of taking the time from CPU in the program will be misleading as it needs to include the time for irrelevant steps in the round-way.
