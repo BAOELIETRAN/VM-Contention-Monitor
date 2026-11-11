@@ -50,3 +50,22 @@ Phase 1:
         - E-cores (atom): low-power cores for energy efficiency and basic tasks.
             - all e-cores share a L2 cache.
     --> a task can be run on different cores at different time --> can pin a task so that the perf profile is static.
+- Instruction-level parallelism:
+    - a single CPU core.
+    - instruction pipelining:
+        - to execute an instruction, CPU needs to do some works:
+            - fetching a chunk of machine code from memory.
+            - decoding it and split into instructions.
+            - executing those instructions.
+            - writing the results back into registers.
+        - --> this whole sequence is long and can take many cycles.
+        - --> to hide latency, modern CPUs use pipelining = after the instruction passes through the first stage, CPUs will process the next one right away.
+    - main performance indicator for CPU = cycles per instruction (CPI)
+    - in a traditional pipeline, stages are overlapped, and a new instruction can finish every single clock cycle.
+        --> 1 cycle per instruction --> base CPI = 1.
+    - we can achieve CPI < 1 by adding more execution units (resources) into one single core --> more instructions per cycle.
+        - e.g. one core has 3 ALUs, 2 floating point units, ...
+        - this is cheaper than adding more additional core.\
+        - superscalar.
+    - superscalar processor only works if instructions are independent.
+    - CPU has a buffer to keep upcoming instructions, as soon as the required data for the instruction is ready and a processing unit is free, CPU will run it.
