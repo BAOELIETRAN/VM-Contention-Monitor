@@ -5,9 +5,48 @@ Phase 1:
 - Hypervisor:
     - a software (lie between hardware and operating system) that can create and run VMs by splitting the current computer's resources into multiple isolated environments. 
 - WSL and shared VMs give misleading timing for a job:
-    - example job: getting time from CPU:
-        - modern CPU has a register and an instruction (RDTSC) to track time.
-            - taking time from CPU usually takes 50 clock cycles.
-        - apps on VMs can not just simply directly ask for time from the CPU, instead; they need to use a round-way with the help from hypervisor.
-            - and this round way can take 1200 - 2000 clock cycles.
-            - --> the timing of the job of taking the time from CPU in the program will be misleading as it needs to include the time for irrelevant steps in the round-way.
+    - WSL2:
+        - run linux inside a hidden virtual machine in Windows.
+        - --> Windows decides when anything is run.
+        - hardware counters are limited.
+        - everything is just a virtualization --> Windows decide everything + our run on WSL will have overhead.
+    - Shared cloud VMs:
+        - put strangers on the same cache and memory bandwidth, and hypervisor can take the current VM's CPU time.
+        - --> fighting for resources.
+    --> noisy numbers we can't explain + performance variability.
+- perf:
+    - perf-events = event-oriented observability tool --> help for performance monitor and troubleshooting.
+        - hardware events
+        - software events
+        - ... (many more kinds of events)
+    - commands types:
+        - listing events
+        - counting events
+        - profiling
+        - static tracing
+        - dynamic tracing
+    - need symbols and stack traces to get the most out of perf.
+        - symbols map raw memory addresses to readable functions and variable names.
+    - stack traces:
+        - always compile with frame pointers.
+        - without it, we will see incomplete stacks from perf_events.
+        - frame pointer = CPU register storing address of the stack frame of the current function.
+    - dynamic tracing:
+        - harder to use.
+        - can be enabled on a live system without restarting anything.
+    - we can visualize data from perf using flame graph.
+    - perf can collect hardware counters, which are registers in CPU tracking low-level hardware events during program execution.
+        - e.g. # of instructions executed, clock ticks, # of instructions per cycle, ...
+    - perf needs to have permission to read hardware counters.
+        - error: <not supported>
+        - fix: drop the sudo requirement:
+            cat /proc/sys/kernel/perf_event_paranoid        # probably 3 or 4
+            echo 'kernel.perf_event_paranoid=1' | sudo tee /etc/sysctl.d/99-perf.conf
+            sudo sysctl --system
+            perf stat -e cycles,instructions ls            # should now work without sudo
+    - CPU has different types of cores:
+        - P-cores: powerful cores for high-performance computing.
+            - every p-cores have its own L2 cache.
+        - E-cores (atom): low-power cores for energy efficiency and basic tasks.
+            - all e-cores share a L2 cache.
+    --> a task can be run on different cores at different time --> can pin a task so that the perf profile is static.
