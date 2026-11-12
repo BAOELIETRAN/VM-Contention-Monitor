@@ -69,3 +69,47 @@ Phase 1:
         - superscalar.
     - superscalar processor only works if instructions are independent.
     - CPU has a buffer to keep upcoming instructions, as soon as the required data for the instruction is ready and a processing unit is free, CPU will run it.
+    - pipelining increases the throughput of the system but not the latency as an instruction still needs that amount of steps to be finished.
+    - pipeline hazard:
+        - when the next instruction can not execute on the following clock cycle.
+        - structural hazard = when 2 or more parts of instructions need the same part of CPU.
+        - data hazard = when the current instruction needs to wait for an operand to be computed from some previous step.
+        - control hazard = when a CPU can't tell which instructions it needs to execute next.
+        - solution - pipeline stall:
+            - if an instruction is congested, stop all other instructions coming after it until it is resolved.
+            - structural hazard = wait until the execution unit is ready.
+            - data hazard = wait until the required data is computed.
+            - control hazard = flush the entire pipeline and start over.
+    - branching:
+        - CPU will start to execute the branch that it guesses to be more likely to be run.
+            - in order to be able to guess, out of all branches it ran before, it computes statistics about them and recognizes pattern overtime.
+        - wrong prediction = control hazard = flush the whole pipeline.
+        - correct prediction = pay almost nothing.
+        - volatile in C++ = require the compiler to generate instructions that read from and write to memory on every single access.
+        - branch prediction can happen as we breaks instructions into stages and use pipelining on them (even though instructions are fetched in a sequence).
+        - branch prediction process:
+            - CPU uses pipelining to fetch instructions.
+            - when the CPU fetches a conditional branch instruction (e.g. if (...)), it will use educated guess to guess whether that if condition is true or false:
+                - true = fetch the instructions inside that if block into the pipeline and execute them.
+                - false = fetch the instructions inside the else block into the pipeline and execute them.
+            - when the conditional branch instruction is fully executed:
+                - if the result is true --> big win.
+                - if the result is false --> flush the whole pipeline and fetch + execute instructions in the correct block.
+    - branchless programming:
+        - e.g.
+            ```
+                int sum = 0;
+                for (int num = 0; num < 100; num ++)
+                    sum += (num < 50) * num;
+            ```
+        - or we can use ternary operator: sum += (num < 50)? num : 0;
+        - we can use predication to avoid costly branch misprediction.
+            - but the CPU needs to compute both the "if" and "else" outcomes before picking the winner.
+            - usually, the double work wastes ALU cycles.
+        - branch prediction has control hazard, and predication has data hazard.
+    - latency = how many cycles to finish one instruction.
+    - throughput = how many instructions, on average, can be executed per cycle.
+    - modern CPUs are superscalar ==> multiple execution units on a single core.
+        - --> to speed up the process, we can divide the work across those execution units.
+        - ![alt text](image/cpu_1acc.png)
+        - ![alt text](image/cpu_2acc.png)
