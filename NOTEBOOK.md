@@ -113,3 +113,10 @@ Phase 1:
         - --> to speed up the process, we can divide the work across those execution units.
         - ![alt text](image/cpu_1acc.png)
         - ![alt text](image/cpu_2acc.png)
+- Here is how to use perf to show # of cycles, instructions, and branch misses on powerful core:
+    ```
+        perf stat -e cycles,instructions,branch-misses ./branch.exe
+    ```
+- branchless code is slower than branched code when the branch is easy to predict, and faster when the branch is harder to predict.
+- __attribute__ is used in C++ to convey special information to compiler.
+- with branchless, there is never a wrong guess --> never a flush. (as the computation for the condition is computed, and the result can be used for both cases -- e.g. sum += (num < 50) * num) 
