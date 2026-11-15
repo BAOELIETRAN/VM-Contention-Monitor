@@ -1,0 +1,1 @@
+/usr/bin/g++ -g -Wl,--dependency-file=CMakeFiles/branch.dir/link.d CMakeFiles/branch.dir/bench/branch.cpp.o -o branch

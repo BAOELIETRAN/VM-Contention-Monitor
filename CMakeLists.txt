@@ -17,3 +17,11 @@ project(VM_MONITOR LANGUAGES CXX)
 # if our compiler doesn't support C++ 23 --> fail (instead of CMake silently fallback to C++ 17)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(branch bench/branch.cpp)
+target_compile_options(branch PRIVATE -O2 -Wall -Wextra)
+
+# run the CMake file:
+# cmake -S . -B build
+# cmake --build build
+# ./build/branch rand-branch 200

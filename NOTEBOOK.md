@@ -120,3 +120,27 @@ Phase 1:
 - branchless code is slower than branched code when the branch is easy to predict, and faster when the branch is harder to predict.
 - __attribute__ is used in C++ to convey special information to compiler.
 - with branchless, there is never a wrong guess --> never a flush. (as the computation for the condition is computed, and the result can be used for both cases -- e.g. sum += (num < 50) * num) 
+- CPU frequency scaling:
+    - OS scales CPU frequency up or down in order to improve performance or save performance.
+    - CPUFreq is a sub-system in kernel that can dynamically adjust the frequency of the CPU while running, and it has 2 layers:
+        - scaling governors = execute algorithms to compute the desired CPU frequency.
+            - performance governor = run the CPU at max frequency.
+            - ondemand = adjust the CPU frequency dynamically according to current load (jump straight to a frequency to handle the load).
+            - conservative = like ondemand but more gradually (increase frequency slowly until the load is hanled).
+        - scaling drivers = interact with CPU directly + apply the CPU freq requested from scaling governors.  
+    - intel_pstate = a driver in Linux kernel for Intel CPUs that can adjust CPU's clock speed (frequency) and electrical votage in real time.
+        - to prevent the CPU from entering turbo state = echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo
+- Pinning a process to specific CPU cores in Linux, use:
+    - taskset -c <core-list> <command> (for a new program).
+    - taskset -c <core-list> -p <PID> (for an already running process).
+- source and bash:
+    - source = run the program in the current shell process.
+    - bash = a new shell process is spawned to run the program and close once its done.
+- for running bash script, anything we add after the file name is an argument
+    - file name is $0
+    - --> arguments start from $1
+- if we use relative path in bash script, it will be resolved to the directory we are currently running the script.
+- import pandas as pd == giving the short nickname pd for pandas library.
+- ubuntu blocks pip install system-wide --> use virtual environment to run python.
+    - activate virtual env = source .venv/bin/activate
+    - record what we installed = pip freeze > requirements.txt

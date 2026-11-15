@@ -65,12 +65,22 @@ std::uint64_t sum_branchless(const std::vector<int>& vec){
 }
 
 int main(int argc, char* argv[]){
+    // ./branch --header prints the CSV header that matches the row printed below
+    if (argc == 2 && std::string_view{argv[1]} == "--header"){
+        std::cout << "variant,reps,total_ms,ns_per_elem,sum" << '\n';
+        return EXIT_SUCCESS;
+    }
     if (argc != 3){
         std::cerr << "Not enough arguments" << '\n';
         return EXIT_FAILURE;
     }
     std::string variant{argv[1]};
     int reps{std::stoi(argv[2])};
+    if (variant != "rand-branch" && variant != "sorted-branch" &&
+        variant != "rand-branchless" && variant != "sorted-branchless"){
+        std::cerr << "unknown variant: " << variant << '\n';
+        return EXIT_FAILURE;
+    }
     // initialize the sorted array
     std::vector<int> sorted_vec(num_elements, 0);
     for (std::size_t index = 0; index < num_elements; index ++){
@@ -92,8 +102,10 @@ int main(int argc, char* argv[]){
     auto end = std::chrono::steady_clock::now();
     double total_ns = std::chrono::duration<double, std::nano>(end - start).count();
     double ns_per_elem = total_ns / (double(num_elements) * reps);
-    std::cout << variant << ": " << total_ns / 1e6 << " ms, "
-          << ns_per_elem << " ns/element, sum = " << sum << '\n';
+    // one CSV row: variant,reps,total_ms,ns_per_elem,sum
+    // (keep in sync with the --header line above)
+    std::cout << variant << ',' << reps << ',' << total_ns / 1e6 << ','
+              << ns_per_elem << ',' << sum << '\n';
     return EXIT_SUCCESS;
 }
 
