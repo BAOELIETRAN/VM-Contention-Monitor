@@ -6,6 +6,9 @@ set -euo pipefail
 # dirname "$0" takes the scripts folder
 root_dir="$(cd "$(dirname "$0")"/.. && pwd)"
 
+# run one 1 core, which is core 0 (p-core)
+p_core_id=0
+
 # check number of arguments
 if (("$#" != 1)); then
     echo "Usage: bash run_branch.sh <label>" >&2
@@ -29,11 +32,11 @@ cmake --build "$root_dir"/build
 input_file_name="$root_dir/build/branch"
 
 # empty out output file
-"$input_file_name" --header > "$output_file_name"
+taskset -c "$p_core_id" "$input_file_name" --header > "$output_file_name"
 
 # run the branch program 20 times.
 reps=20
 for (( i = 0; i < "$reps"; i ++ ))
 do
-    "$input_file_name" "$label" 200 >> "$output_file_name"
+    taskset -c "$p_core_id" "$input_file_name" "$label" 200 >> "$output_file_name"
 done

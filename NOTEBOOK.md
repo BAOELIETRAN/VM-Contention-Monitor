@@ -144,3 +144,47 @@ Phase 1:
 - ubuntu blocks pip install system-wide --> use virtual environment to run python.
     - activate virtual env = source .venv/bin/activate
     - record what we installed = pip freeze > requirements.txt
+- branch predictor training is not transferred across different CPU cores --> if a program is run on multiple cores --> the branch predictor training for it will be restarted on the new core --> add more runtime.
+    - --> run a program on different nodes will cause overhead (e.g. take data about the program from a cache of this node to the cache of the other node) + new branch predictor training.
+    - --> bad for performance.
+    - --> pin the program on 1 core. (e.g. taskset -c core_id)
+- to reduce performance variability and increase performance, set the scaling governor = performance governor --> run at max CPU frequency.
+    - to see all governors that the machine support:
+        ```
+            cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors
+        ```
+    - to see what governor that the machine is using:
+        ```
+            cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+        ```
+    - to set the performance governor to one core (core 0): 
+        ```
+            sudo cpupower -c 0 frequency-set -g performance
+        ```
+    - to undo it:
+        ```
+            sudo cpupower -c 0 frequency-set -g powersave
+        ```
+- with turbo, the core can run the program at a frequency that is higher than its normal speed range, but it needs to depend on the temperature --> not steady --> should turn turbo off.
+    - turn turbo off:
+        ```
+            echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+        ```
+    - turn turbo on:
+        ```
+            echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+        ```
+- frequency = cycles per second | 1 Ghz = 1 billion cycles per second.
+- as we turn off turbo, the CPU will run with the base frequency --> less # of cycles per second but steadier.
+- with turbo on:
+    - peak runtime = 1.6 ns per element
+    - peak frequency = 4.7 Ghz = 4,700,000,000 cycles per sec
+    - --> # of cycles per element = 1.6 x 10^-9 x 4.7 x 10^9 = 7.52 cycles per element
+- with turbo off:
+    - peak runtime = 3.3 ns per element
+    - peak frequency = 2.2 Ghz = 2,200,000,000 cycles per sec
+    - --> # of cycles per element = 3.3 x 10^-9 x 2.2 x 10^9 = 7.25 cycles per element
+- --> # of cycles per element is roughly the same.
+- --> same amount of work to be done, but each step is longer without turbo.
+- --> turbo changes how long each cycle lasts, not the amount of work we need to finish a job.
+- --> we want the steadier baseline for this project as it will help us detect the contentsion easier. (e.g. a sudden jump from a steady line)

@@ -36,6 +36,6 @@ ax.set_xticks(x)
 # include a dashed median line
 ax.axhline(panda_dataframe["ns_per_elem"].median(), linestyle="--")
 ax.set_ylim(bottom=0)
-ax.set_ylim(0, 2.5)
+ax.set_ylim(0, 5)
 # save the figure
 fig.savefig(input_file_path.with_suffix(".png"))
