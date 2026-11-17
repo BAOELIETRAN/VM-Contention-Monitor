@@ -1,2 +1,5 @@
 .venv/
-.build/
+build/
+.vscode/
+__pycache__/
+*.exe
