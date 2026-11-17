@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/baoelietran/Projects/VM-Contention-Monitor/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

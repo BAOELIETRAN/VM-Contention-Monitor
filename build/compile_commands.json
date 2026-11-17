@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/home/baoelietran/Projects/VM-Contention-Monitor/build",
-  "command": "/usr/bin/g++   -g -std=gnu++23 -O2 -Wall -Wextra -o CMakeFiles/branch.dir/bench/branch.cpp.o -c /home/baoelietran/Projects/VM-Contention-Monitor/bench/branch.cpp",
-  "file": "/home/baoelietran/Projects/VM-Contention-Monitor/bench/branch.cpp",
-  "output": "CMakeFiles/branch.dir/bench/branch.cpp.o"
-}
-]
