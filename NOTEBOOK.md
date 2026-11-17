@@ -188,3 +188,111 @@ Phase 1:
 - --> same amount of work to be done, but each step is longer without turbo.
 - --> turbo changes how long each cycle lasts, not the amount of work we need to finish a job.
 - --> we want the steadier baseline for this project as it will help us detect the contentsion easier. (e.g. a sudden jump from a steady line)
+
+Phase 2:
+- cache:
+    - write through = data is written to both the cache and RAM at the same time.
+    - write back = data is written to cache first, then it would be written to RAM later.
+- memory hierarchy:
+    - register
+    - L1 cache (private)
+    - L2 cache (private/shared)
+    - L3 cache (shared)
+    - RAM
+    - Disk
+    - the layers that are closer to the CPU are faster but smaller in size.
+- when the CPU needs to process data, it does not just pull it straight from RAM or from disk. Data will move through a series of caches (L3 --> L2 --> L1)
+- here is the process of bringing data from the RAM:
+    - CPU first check all of its caches and does not see the data in any of the cache --> cache miss.
+    - Then, data (with locality) from RAM will be brought to L3 cache, then L2 cache, then L1.
+    - Then, the data is sent from L1 cache into CPU registers --> ready to be used.
+- here is how data is written back to RAM:
+    - when CPU is done computing the data (or using the data without modifying it), it will write the value back to L1 cache and mark the data as "dirty".
+    - "dirty" = the data has been changed, and the version in RAM is old.
+    - when the L1 cache is filled up:
+        - if the data is clean --> the controller would not waste time or memory bandwidth to bring it to L2 --> L1 will overwrite that data with the new data --> the old clean data is erased.
+        - if the data is not clean --> kick to L2 cache, then kick to L3 cache (if L2 cache is full), and then kick to RAM (if L3 cache is full).
+- metrics:  
+    - latency = time delay between the exact moment that the CPU requests a piece of data to the moment that data arrives in the CPU register.
+    - bandwidth = total amount of data that can flow through the physical wire between a memory layer and the CPU over one second.
+        - L1 cache --> CPU = 1000 GB/s
+        - RAM --> CPU = 100 GB/s
+- if the size of the array is small (fit to cache 1) --> CPU can take the whole array and do computation.
+- if the size is bigger than the cache --> it get split between caches and RAM --> CPU needs to spend more time to fetch before doing any computation.
+- besides read and write, the data can be:
+    - read only = its value is brought from L1 cache to CPU, but the data is still marked as "clean"
+    - write only = the data is in L1 cache with address X (or being brought from RAM to L1 cache), CPU write back new data to address X and mark the data as "dirty"
+- cache bypassing:
+    - if we use non-temporal read/write, we are telling the CPU that we won't need the data we just accessed in the future.
+    - --> data does not need to go through the cache hierarchhy.
+    - instead, data is read to WCB (write combining buffer):
+        - data is read from the memory to WCB.
+        - after the data is being done using, then it would be written back to RAM.
+    - bypassing the cache is good if we will not look at it again for a long time.
+- cache line = smallest fundamental unit of data transfer between RAM and CPU.
+    - standard cache line size is 64 bytes.
+    - at one time, CPU will fetch block(s) of data with size of 64 bytes from RAM to CPU.
+    - --> modern CPU fetch memory in chunks of 64 bytes.
+    - ![alt text](cache_line.png)
+    - in this image, we can see that for K = 1 --> 16, we will have same runtime, but when K > 16, the runtime reduces:
+        - a cache line contains 64 bytes --> 16 ints.
+        - for K = 1 --> 16, we need to access every cache line.
+        - but for K = 32, we can skip the second cache line and access the data in the third cache line.
+        - --> less cache line is brought to the cache --> better performance.
+        - (same thing with K > 32)
+- instruction-level parallelism:
+    - in this code snippet:
+        ```
+            int steps = 256 * 1024 * 1024;
+            int[] a = new int[2];
+            // Loop 1
+            for (int i=0; i<steps; i++) { a[0]++; a[0]++; }
+            // Loop 2
+            for (int i=0; i<steps; i++) { a[0]++; a[1]++; }
+        ```
+    - the performance of loop 2 is better than that of loop 1:
+        - the whole array a is in cache (spatial locality)
+        - in loop 1, a[0] will be handled in sequence (first add, then second add)
+        - in loop 2, a[0] and a[1] will be handled at the same time.
+- cache associativity:
+    - direct mapped cache:
+        - 1 memory chunk is assigned to a slot in the cache using index.
+        - 2 memory chunks are mapped to the same slot --> they can not be stored simultaneously in the cache.
+    - n-way set associative cache:
+        - 1 memory chunk can be stored in any one of the N particular slots in the cache.
+            - the cache is split into cache sets, with each set contains N slots.
+            - a memory chunk will be assigned to a set, and it can use any slot inside that set.
+    - fully associative cache:
+        - 1 memory chunk can be stored in any slot in the cache.
+    - less severe than others in terms of affecting performance.
+- false cache line sharing:
+    - cache coherence:
+        - each CPU core will have its own L1 cache.
+        - if core 1 and core 2 load the same data into their L1 caches:
+            - core 1 modifies it --> copy of core 2 will be outdated.
+            - --> core 1 will send an invalidate message to core 2 telling core 2 to drop that data.
+    - granularity catch:
+        - hardware track the data status by the 64-byte cache line.
+        - --> core 1 and core 2 bring a cache line to their L1 caches, then modify data inside those cache lines.
+        - even though core 1 and core 2 handle different data on that cache line:
+            - if core 1 modify the data --> the whole cache line in core 2 will be outdated.
+    - consequence:
+        - as core 2 needs to invalidate the whole cache line while the data its handling is not really outdated.
+        - --> false sharing 
+    - e.g.
+        - in this code snippet:
+            ```
+                private static int[] s_counter = new int[1024];
+                private void UpdateCounter(int position)
+                {
+                    for (int j = 0; j < 100000000; j++)
+                    {
+                        s_counter[position] = s_counter[position] + 3;
+                    }
+                }
+            ```
+        - when param is 0,1,2,3 the runtime is 4.3 secs.
+        - when param is 16,32,48,64 the runtime is 0.28 secs.
+        - the reason is positions 0,1,2,3 are likely on the same cache line --> only one core can use it at a time.
+        - but for bigger positions, data are on different cache lines --> each core can work on 1 cache line at a time.
+- hardware is unpredictable --> variety in performance.
