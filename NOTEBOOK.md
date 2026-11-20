@@ -204,6 +204,11 @@ Phase 2:
 - when the CPU needs to process data, it does not just pull it straight from RAM or from disk. Data will move through a series of caches (L3 --> L2 --> L1)
 - here is the process of bringing data from the RAM:
     - CPU first check all of its caches and does not see the data in any of the cache --> cache miss.
+        - look at L1 - miss.
+        - ask L2 - miss.
+        - ask L3 - miss
+        - --> ask memory controller to read data from RAM.
+        - (each level is asked only after the one above it misses)
     - Then, data (with locality) from RAM will be brought to L3 cache, then L2 cache, then L1.
     - Then, the data is sent from L1 cache into CPU registers --> ready to be used.
 - here is how data is written back to RAM:
@@ -225,9 +230,12 @@ Phase 2:
 - cache bypassing:
     - if we use non-temporal read/write, we are telling the CPU that we won't need the data we just accessed in the future.
     - --> data does not need to go through the cache hierarchhy.
-    - instead, data is read to WCB (write combining buffer):
-        - data is read from the memory to WCB.
-        - after the data is being done using, then it would be written back to RAM.
+    - for non-temporal writes:
+        - data moves from CPU registers into the Write Combining Buffer (WCB), which can merge smaller writes into a bullet 64-byte block.
+        - Once full, WCB flushes the block directly to RAM.
+    - for non-temporal reads:
+        - data is fetched from RAM into a temporary load buffer.
+        - then the data from that load buffer will be handed straight to CPU registers.
     - bypassing the cache is good if we will not look at it again for a long time.
 - cache line = smallest fundamental unit of data transfer between RAM and CPU.
     - standard cache line size is 64 bytes.
@@ -253,7 +261,7 @@ Phase 2:
     - the performance of loop 2 is better than that of loop 1:
         - the whole array a is in cache (spatial locality)
         - in loop 1, a[0] will be handled in sequence (first add, then second add)
-        - in loop 2, a[0] and a[1] will be handled at the same time.
+        - in loop 2, a[0] and a[1] will be handled at the same time (pipeline style).
 - cache associativity:
     - direct mapped cache:
         - 1 memory chunk is assigned to a slot in the cache using index.
@@ -273,7 +281,7 @@ Phase 2:
             - --> core 1 will send an invalidate message to core 2 telling core 2 to drop that data.
     - granularity catch:
         - hardware track the data status by the 64-byte cache line.
-        - --> core 1 and core 2 bring a cache line to their L1 caches, then modify data inside those cache lines.
+        - --> core 1 and core 2 bring 1 copy each of a cache line to their L1 caches, then modify data inside those cache lines.
         - even though core 1 and core 2 handle different data on that cache line:
             - if core 1 modify the data --> the whole cache line in core 2 will be outdated.
     - consequence:
@@ -291,8 +299,30 @@ Phase 2:
                     }
                 }
             ```
+        - run the code snippet on 4 different threads with 4 different params.
         - when param is 0,1,2,3 the runtime is 4.3 secs.
         - when param is 16,32,48,64 the runtime is 0.28 secs.
         - the reason is positions 0,1,2,3 are likely on the same cache line --> only one core can use it at a time.
         - but for bigger positions, data are on different cache lines --> each core can work on 1 cache line at a time.
 - hardware is unpredictable --> variety in performance.
+- lscpu --caches (or lscpu -C) shows a table of the CPU's cache information (e.g. cache level + other hardware architecture details).
+    NAME ONE-SIZE ALL-SIZE WAYS TYPE        LEVEL  SETS PHY-LINE COHERENCY-SIZE
+    L1d       48K     320K   12 Data            1    64        1             64
+    L1i       64K     512K   16 Instruction     1    64        1             64
+    L2       2.5M      14M   10 Unified         2  4096        1             64
+    L3        12M      12M   12 Unified         3 16384        1             64
+    - L1d = L1 data cache - storing data.
+    - one size = size of one cache.
+    - all size = size of all that cache combined.
+    - sets and ways = a cache is divided into multiple sets, and in each sets there are multiple ways.
+- spatial locality:
+    - within one cache line:
+        - if data x from the cache line A is requested, then CPU will bring all the nearby data inside that cache line into cache.
+        - CPU also fetches the adjacent cache lines:
+            - but this will only happen when the CPU sees us reading cache lines in a pattern. 
+            - then, it will grab a few cache lines ahead of time -- but staying within a 4KB page boundary.
+- to make a template struct have size of 64 bytes --> we use explicit padding + static_assert to check the size at compile time.
+- alignas(64):
+    - is a specifier in C++11 that forces the compiler to store every instance of the struct at a memory address ⋮ 64.
+    - as each instance has the size of 64 bytes --> each instance will be fit into 1 cache line.
+    - sizeof() of any object in C++ = multiple of that object's alignment --> if the memory address of the object is ⋮ 64 and the current size < 64 bytes --> compiler will add padding such that the size of the current object becomes 64 bytes.
