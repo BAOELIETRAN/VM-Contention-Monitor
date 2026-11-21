@@ -323,6 +323,54 @@ Phase 2:
             - then, it will grab a few cache lines ahead of time -- but staying within a 4KB page boundary.
 - to make a template struct have size of 64 bytes --> we use explicit padding + static_assert to check the size at compile time.
 - alignas(64):
-    - is a specifier in C++11 that forces the compiler to store every instance of the struct at a memory address ⋮ 64.
+    - is a C++11 specifier that sets the alignment of an object to 64 bytes.
+        - alignment:
+            - a compile time constraint attached to a data type.
+            - any object of this type must be placed at a memory address that ⋮ to its alignment.
+    - the compiler will apply trailing padding:
+        - it will add the padding to the current object so that the total size of the object is a multiple of the object's alignment.
+        - as we set the alignment to 64 bytes --> if the object's size < 64 --> compiler will add trailing padding to make its size = 64.
     - as each instance has the size of 64 bytes --> each instance will be fit into 1 cache line.
-    - sizeof() of any object in C++ = multiple of that object's alignment --> if the memory address of the object is ⋮ 64 and the current size < 64 bytes --> compiler will add padding such that the size of the current object becomes 64 bytes.
+    - sizeof() will return the size of object + any padding.
+    - internal padding (between members):
+        - the compiler add padding to each member so each individual member can start at an offset ⋮ to its alignment.
+        - e.g.
+            struct object{
+                char a{};
+                int b{};
+                char c{};
+            };
+            - alignment of int = 4 --> needs to have offset ⋮ 4 --> add 3 bytes padding to a.
+    - user-defined types (struct, union, class):
+        - alignment of these types = largest alignment among its non-static data members.
+        - e.g.
+            struct object{
+                char a{};
+                int b{};
+                char c{};
+            };
+            - as the largest alignment among all non-static members (a, b, and c) is 4 --> alignment of the struct is 4.
+            - --> compiler needs to ensure that the size of the struct ⋮ 4.
+            - as we already added 3 bytes to a, we will add 3 more bytes to c --> total size = 12 ⋮ 4.
+- vector always stores its elements on heap -- and the elements are contiguous on the heap.
+    - as each program is granted a virtual address space --> contiguous on virtual address space.
+    - stack only stores data about the vector object itself.
+- struct also has template instantiation -- compiler will create a real struct that matches with the type T the users define.
+- if the buffer size is big, then data will be split between caches and RAM.
+    - --> to measure wait time of CPU for an element --> need to measure time of running a lot of moves and average them.
+- const pointer = const T* ptr --> can not modify pointed value.
+- pointer to const = T* const ptr --> can not point to any other thing.
+- the plot needs to show where the latency jumps --> need to add more sizes.
+- $ in bash = tell the shell to evaluate the expression or replace a variable with its resulting value
+- analysis of cache_phase.png:
+    - as we can see in the graph, when the size of the buffer <= size of L1 cache, the buffer lies completely inside L1. The avg time to bring one element to CPU registers is stable with buffer size from 4KB to 32 KB.
+    - but when the size of the buffer > size of L1 cache and <= size of L2 cache, there are jumps in avg time to bring one element to CPU registers.
+    - when the size of the buffer is > size of L2 cache and <= size of L3 cache, the avg time rises pretty sharply. 
+        - data needs to be brought from L3.
+        - key idea: L3 cache is shared among cores --> it contains a variety of data, not just data of the buffer.
+            --> the L3 cache contains less data of the buffer, and the rest of the buffer will be in RAM.
+            --> the avg time to bring data into CPU will be slow.
+        - besides, TLB is a cache of the page table:
+            - size of TLB is small --> it can hold such amount of page address translations.
+            - but buffer size grows big --> CPU needs to look at the page table more often to search for translation as TLB may not contain it.
+            - --> make the avg time to bring data into CPU slow.
