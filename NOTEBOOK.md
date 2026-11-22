@@ -374,3 +374,75 @@ Phase 2:
             - size of TLB is small --> it can hold such amount of page address translations.
             - but buffer size grows big --> CPU needs to look at the page table more often to search for translation as TLB may not contain it.
             - --> make the avg time to bring data into CPU slow.
+- prefetching:
+    - it is good to prefetch data that is likely to be accessed next if its location can be predicted.
+    - out-of-order execution:
+        - CPU can look ahead in the code and execute later instructions if their operands are ready.
+            - --> it can handle other instructions while the current one is stuck waiting, as long as the future instructions does not depend on the current stuck one.
+        - e.g. (arr[x] is not in the cache, while y is already in the register)
+            a = arr[x]
+            b = a + 5
+            c = y * 2
+            d = c + 10
+        - in-order CPU:
+            - run instruction 1, but arr[x] is in RAM --> memory controller (integrated inside CPU) will fetch the RAM to take it, but it will take 200 cycles.
+            - run instruction 2, which depends on the data of instruction 1 --> wait until data is ready.
+            - after instruction 1 and 2 are finished, then instruction 3 is run, then instruction 4.
+            - --> CPU's math units stay idle while waiting for data from RAM.
+        - out-of-order CPU (hide latency):
+            - run instr 1, and memory controller will fetch data from RAM.
+            - run instr 2, CPU sees that it needs a, so CPU parks instr 2 in waiting area.
+            - run instr 3, and y is already in register --> CPU executes instr 3 immediately.
+            - then it runs instr 4.
+            - when data is finally arrived from RAM, then CPU can finish instr 1 as well as wake up instr 2 and finish it.
+    - implicit prefetching (hardware prefetcher):
+        - a hardware prefetcher can detects our memory access pattern and prefetch data.
+            - sad news: hardware prefetcher can only detect simple patterns.
+        - e.g. 
+            - if we access a[0], a[1], a[2], ... (iterating linearly through an array or stepping by a constant stride)
+                - --> the hardware prefetcher will detect the pattern and automatically pull upcoming cache line into L1/L2 cache before the instructions even request them.
+        - sequential prefetching = predict adjacent blocks.
+            - e.g. when block B is accessed, the hardware will fetch blocks B + 1, B + 2, ...
+            - usecase = lineary array scan.
+        - stride prefetching = detect and predict any constan address gap between memory addresses.
+            - track the address difference ("stride") between consecutive accesses.
+                - if accesses are seperated by a distance S (A, A + S, A + 2S, ...)
+                - --> the prefetcher will predict A + 3S next.
+            - usecase = strided loop iteration.
+    - explicit prefetching (software prefetching):
+        - sometimes the access pattern is too irregular that hardware prefetcher can not predict.
+        - if we know what address we will need to fetch in the future --> we can manually tell the CPU to fetch the cache line ahead of time (using __builtin_prefetch(&a[idx[i + 8]])).
+- locality:
+    - spatial locality = if we grab one item, we will likely need items sitting next to it soon.
+    - temporal locality = if we use something right now, we will likely to use it again soon.
+- cache probe = something to measure the cache.
+- software is working with virtual address.
+- hardware (CPU, RAM, ...) is working with real physical address.
+- work flow:
+    - when a software needs a data.
+    - the CPU will need to find where that data on the physical memory.
+    - first of all, the CPU will need to translate the virtual address of the data to physical address.
+    - to do that, it will look up TLB:
+        - if the data is mapped to a page that is already in TLB:
+            - CPU will compute offsets to know the physical address of that data.
+            - if the data is on cache --> CPU will use it.
+            - if not --> CPU will need to fetch it from RAM and bring it to cache.
+        - if the data is not in any page in TLB:
+            - the CPU will look up the page table and get the translation for the physical page that the data lives in.
+            - then, it uses the physical address of the page, and also updates the TLB, and compute offsets to know the physical address of the current data.
+            - if the data is on cache --> CPU will use it.
+            - if not --> CPU will need to fetch it from RAM and bring it to cache.
+    - however, the size of TLB is limited, so if we have multiple data and those data are scattered across different pages, then the CPU needs to spend more time on page table to search for addresses --> more run time.
+- size of a page = 4KB.
+- analysis of cache_chase_all_mode.png:
+    - as we can see, the time to bring one element to CPU would be smallest for sequential mode, then stride, and then biggest for random.
+    - the reasoning is that if we access elements in order (e.g. sequentially or in stride), then the hardware prefetcher in the CPU can learn the access pattern, and then it will know what data to fetch even before we need it and bring it into cache.
+    - --> thats why the time to load an element to CPU is smaller for sequential and stride.
+    - but for our project, the purpose of the project is to identify whether any neighbor is contending for L3 cache:
+        - since we are using probe to measure L3, we will want to set the size of buffer of the probe to <= the size of L3 cache.
+        - and in the cache, we will run many laps --> data is accessed again and again (and we also need a warmup run to let every data to sit in the cache). 
+        - if we use predictable pattern --> the CPU will know what data to fetch before hand --> it can bring it into cache and then CPU can access it from cache --> the load time would not change that much --> can not tell whether is there anyone using our cache.
+        - but if we use random order --> then the CPU will not know what data to access next beforehand --> it needs to access data one by one.
+            - if older data is kicked out of cache --> the load time will be suddenly higher as CPU needs to take it from RAM (no prefetching) --> a possibility that a neighbor VM is contending for L3.
+        - --> thats why random order would be better for our probe.
+    - cache probe is just one component of the whole project, and it can not speak for every cases (some cases the cache probe will be wrong).

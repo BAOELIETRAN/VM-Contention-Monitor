@@ -24,7 +24,7 @@ input_file_name="$root_dir"/build/chase
 
 # get the output file
 mkdir -p "$root_dir"/results
-output_file_name="$root_dir"/results/cache_chase.csv
+output_file_name="$root_dir"/results/cache_chase_all_mode.csv
 if [[ ! -f "$output_file_name" ]]; then
     touch "$output_file_name"
 fi
@@ -55,9 +55,13 @@ fi
 # add header to output file
 echo "run,$("$input_file_name" --header)" > "$output_file_name"
 
-# run the program 5 times
+# run through all the run modes, and run each mode 5 times
 reps=5
-for (( i = 1; i <= "$reps"; i ++ ))
-do
-    taskset -c "$p_core_id" "$input_file_name" | sed "s/^/$i,/" >> "$output_file_name"
+run_mode_list=("random" "sequential" "stride")
+for run_mode in "${run_mode_list[@]}"; do
+    echo "Current run mode: ${run_mode}"
+    for (( i = 1; i <= "$reps"; i ++ ))
+    do
+        taskset -c "$p_core_id" "$input_file_name" "$run_mode" | sed "s/^/$i,/" >> "$output_file_name"
+    done
 done

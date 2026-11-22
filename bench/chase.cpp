@@ -28,28 +28,59 @@ struct alignas(64) cache_line_node{
     @brief: build a chain of elements with random order
 */
 template <typename T>
-std::vector<cache_line_node<T>> build_chain(std::size_t buffer_size){
+std::vector<cache_line_node<T>> build_chain(std::size_t buffer_size, const std::string& run_mode, std::size_t stride_len){
     static_assert(sizeof(cache_line_node<T>) <= 64, "The size of cache_line_node > 64!");
     std::size_t buffer_len{buffer_size / 64};
     std::vector<cache_line_node<T>> chain(buffer_len, cache_line_node<T>());
-    // pick a seed
-    std::uint64_t seed{std::random_device{}()};
-    // create a generator
-    std::mt19937_64 generator{seed};
-    // list of index
-    std::vector<std::size_t> index_list(buffer_len, 0);
-    for (std::size_t index = 0; index < buffer_len; index ++){
-        index_list[index] = index;
+    if (run_mode == "random"){
+        // pick a seed
+        std::uint64_t seed{std::random_device{}()};
+        // create a generator
+        std::mt19937_64 generator{seed};
+        // list of index
+        std::vector<std::size_t> index_list(buffer_len, 0);
+        for (std::size_t index = 0; index < buffer_len; index ++){
+            index_list[index] = index;
+        }
+        // shuffle the index_list
+        std::shuffle(index_list.begin(), index_list.end(), generator);
+        // handle small loop: take index_list as the order for nodes
+        for (std::size_t index = 0; index < buffer_len; index ++){
+            std::size_t cur_node_idx = index_list[index];
+            std::size_t next_node_idx = index_list[(index + 1) % buffer_len];
+            chain[cur_node_idx].next = &chain[next_node_idx];
+            chain[cur_node_idx].value = T();
+        }
     }
-    // shuffle the index_list
-    std::shuffle(index_list.begin(), index_list.end(), generator);
-    // handle small loop: take index_list as the order for nodes
-    for (std::size_t index = 0; index < buffer_len; index ++){
-        std::size_t cur_node_idx = index_list[index];
-        std::size_t next_node_idx = index_list[(index + 1) % buffer_len];
-        chain[cur_node_idx].next = &chain[next_node_idx];
-        chain[cur_node_idx].value = T();
+    else if (run_mode == "sequential"){
+        for (std::size_t index = 0; index < buffer_len; index ++){
+            std::size_t next_node_idx = (index + 1) % buffer_len;
+            chain[index].next = &chain[next_node_idx];
+            chain[index].value = T();
+        }
     }
+    else if (run_mode == "stride"){
+        std::size_t num_node_gap{stride_len / 64};
+        if (num_node_gap < 1){
+            throw std::invalid_argument("Not enough gap for striding");
+        }
+        std::vector<std::size_t> index_list(buffer_len, 0);
+        std::size_t index = 0;
+        // form the strided index list
+        for (std::size_t cur_index = 0; cur_index < num_node_gap; cur_index ++){
+            for (std::size_t next_index = cur_index; next_index < buffer_len; next_index += num_node_gap){
+                index_list[index] = next_index;
+                index ++;
+            }
+        }
+        // build list from the index_list
+        for (std::size_t index = 0; index < buffer_len; index ++){
+            std::size_t cur_node_idx = index_list[index];
+            std::size_t next_node_idx = index_list[(index + 1) % buffer_len];
+            chain[cur_node_idx].next = &chain[next_node_idx];
+            chain[cur_node_idx].value = T();
+        }
+    }   
     return chain;
 }
 
@@ -108,6 +139,7 @@ double chase_chain(const std::vector<cache_line_node<T>>& chain, std::uint32_t n
 }
 
 int main(int argc, char* argv[]){
+    // Usage: ./chase <mode>, with mode can be sequential, random, or stride
     try{
         // list of sizes for buffer
         std::vector<std::size_t> buffer_size_list{};
@@ -120,18 +152,25 @@ int main(int argc, char* argv[]){
             cur_size *= 2;
         }
         if (argc == 2 && std::string_view{argv[1]} == "--header"){
-            std::cout << "buffer_size_bytes,ns_per_load" << '\n';
+            std::cout << "run_mode,buffer_size_bytes,ns_per_load" << '\n';
             return EXIT_SUCCESS;
         }
-        if (argc != 1){
-            std::cerr << "Invalid amount of arguments" << '\n';
+        if (argc != 2){
+            std::cerr << "Usage: ./chase <mode>" << '\n';
             return EXIT_FAILURE;
         }
+        // run mode: random, sequential, or stride
+        std::string run_mode{argv[1]};
+        if (run_mode != "random" && run_mode != "sequential" && run_mode != "stride"){
+            throw std::logic_error("Usage: run_mode = random | sequential | stride");
+        }
+        // stride len = 4 KB --> take data from one page at a time
+        std::size_t stride_len{4096};
         std::uint32_t num_moves{16777216};
         for (auto& buffer_size : buffer_size_list){
-            std::vector<cache_line_node<std::int32_t>> chain{build_chain<std::int32_t>(buffer_size)};
+            std::vector<cache_line_node<std::int32_t>> chain{build_chain<std::int32_t>(buffer_size, run_mode, stride_len)};
             double time_per_move = chase_chain(chain, num_moves);
-            std::cout << buffer_size << ',' << time_per_move << '\n';
+            std::cout << run_mode << ',' << buffer_size << ',' << time_per_move << '\n';
         }
     }
     catch(const std::exception& e){

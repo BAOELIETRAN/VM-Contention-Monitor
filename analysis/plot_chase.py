@@ -22,11 +22,13 @@ if input_file_path.suffix.lower() != ".csv":
 
 # use pandas to read csv file
 panda_dataframe = panda.read_csv(input_file_path)
-stats = panda_dataframe.groupby("buffer_size_bytes")["ns_per_load"].agg(["median", "min", "max"])
-x = stats.index
 fig, ax = plt.subplots()
-ax.plot(x, stats["median"], marker="o")
-ax.fill_between(x, stats["min"], stats["max"], alpha=0.3)
+for mode, mode_rows in panda_dataframe.groupby("run_mode"):
+    stats = mode_rows.groupby("buffer_size_bytes")["ns_per_load"].agg(["median", "min", "max"])
+    x = stats.index
+    ax.plot(x, stats["median"], marker="o", label=mode)
+    ax.fill_between(x, stats["min"], stats["max"], alpha=0.3)
+ax.legend()
 ax.set_xlabel("buffer size")
 ax.set_ylabel("ns per load")
 ax.set_xscale("log", base=2)
