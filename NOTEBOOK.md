@@ -446,3 +446,60 @@ Phase 2:
             - if older data is kicked out of cache --> the load time will be suddenly higher as CPU needs to take it from RAM (no prefetching) --> a possibility that a neighbor VM is contending for L3.
         - --> thats why random order would be better for our probe.
     - cache probe is just one component of the whole project, and it can not speak for every cases (some cases the cache probe will be wrong).
+- cache associativity:
+    - for these 2 snippets:
+        ```
+            for (int i = 0; i < N; i += 256)
+                a[i]++;
+        ```
+        ```
+            for (int i = 0; i < N; i += 257)
+                a[i]++;
+        ```
+        - the second loop runs 10 times faster than the first one (due to cache associativity).
+    - hardware cache:
+        - fully associative cache:
+            - background knowledge:
+                - each byte in RAM has an address.
+                - RAM is just a flat, continuous array of bytes.
+                - cache logically slices RAM into 64-byte chunks. When it request a data, it always grab a chunk of 64 bytes.
+                - if CPU requests a data from RAM:
+                    - that data has address X (virtual).
+                    - convert it into actual physical address.
+                    - then it 
+                    - then it would split the address into 2:
+                        - upper bits (tag) -- which 64-byte chunk on RAM containing this data?
+                        - lower bits (offset) -- which byte inside that 64-byte chunk that the CPU needs?
+                    - then the CPU check the cache (check each slot by its tag) to see whether the chunk is already brought into cache yet:
+                        - if not --> take the chunk from RAM and get the requested data from that chunk.
+                        - if yes --> just simply take the requested data from the chunk on cache.
+            - in general, a tag is a physical address of the 64-byte chunk on RAM.
+            - for a slot in cache, it has:
+                - tag
+                - valid bit -- indicate whether the slot actually holds real data or just startup garbage
+            - CPU checks tags of all slots in parallel:
+                - the incoming tag bits are sent to all slots on the cache.
+                - each slot has its own hardware comparator that compares the incoming tag with its own tag --> if matches --> return 1.
+                - if any slot returns 1 --> CPU takes data from that.
+                - if none --> CPU take the 64-byte block from RAM and take needed data from that block.
+            - what if all the cache are fully filled with blocks?
+                - block(s) need to be kicked out.
+                - using LRU policy to kick blocks out.
+        - direct-mapped cache:
+            - map each 64-byte block on RAM to a single cache line on cache.
+            - kick out rule: for a slot on cache, if newer data that is assigned to that slot arrives --> old data in that slot got kicked out.
+        - set-associative cache:
+            - a middle ground between fully-associative cache and direct-mapped cache.
+            - it groups slots on cache into sets:
+                - a 64-byte chunk from RAM is assigned to one set.
+                - the chunk can live in any of the k slots (called ways) inside that set.
+                - --> k-way set-associative cache.
+            - look up and eviction:
+                - an address is split into 3 fields (left --> right order): tag bits, index bits, and offset bits. 
+                - index bits: to find what set on cache that the data belongs to.
+                - then CPU will check all blocks in that set in parallel with tag.
+                - if find --> use offset and get data from the found block.
+                - if not find:
+                    - if the set still has spaces --> bring 64-byte block from RAM to set.
+                    - if not --> kick out LRU block and bring the 64-byte block from RAM to set.
+            - although the cache still has a lot of empty spaces, but if data are competing for a set, a lot of cache misses can happen --> slow down the performance.
