@@ -20,8 +20,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(branch bench/branch.cpp)
 add_executable(chase bench/chase.cpp)
+add_executable(l1_assoc bench/l1_assoc.cpp)
 target_compile_options(branch PRIVATE -O2 -Wall -Wextra)
 target_compile_options(chase PRIVATE -O2 -Wall -Wextra)
+target_compile_options(l1_assoc PRIVATE -O2 -Wall -Wextra)
 
 # run the CMake file:
 # cmake -S . -B build

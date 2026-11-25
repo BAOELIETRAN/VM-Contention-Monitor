@@ -446,6 +446,7 @@ Phase 2:
             - if older data is kicked out of cache --> the load time will be suddenly higher as CPU needs to take it from RAM (no prefetching) --> a possibility that a neighbor VM is contending for L3.
         - --> thats why random order would be better for our probe.
     - cache probe is just one component of the whole project, and it can not speak for every cases (some cases the cache probe will be wrong).
+- /bench is for experiments - learning and measuring, while /daemon is for the actual tool.
 - cache associativity:
     - for these 2 snippets:
         ```
@@ -503,3 +504,7 @@ Phase 2:
                     - if the set still has spaces --> bring 64-byte block from RAM to set.
                     - if not --> kick out LRU block and bring the 64-byte block from RAM to set.
             - although the cache still has a lot of empty spaces, but if data are competing for a set, a lot of cache misses can happen --> slow down the performance.
+- analysis of l1_assoc_all_mode.png:
+    - as we can see, if we access the cache lines in a way that they compete for a set in the cache, then newer data will kickout older data --> then if we want to access older data, it will be a cache miss --> need to take them from lower cache level and bring back to l1 cache. This cache miss happens even when the cache still has tons of empty places.
+    - if we access data such that they are spread across sets in l1 cache, then the cache miss issue is less servere as older data and newer data will both likely to have places on cache.
+    - --> the noisy neighbor does not need to fill in the whole cache to hurt us, it can just hit the same cache set we are using.
