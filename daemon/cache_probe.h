@@ -12,6 +12,7 @@
 #include <chrono>
 #include <x86intrin.h>
 #include <thread>
+#include <cctype>
 
 namespace fs = std::filesystem;
 
@@ -34,6 +35,8 @@ class cache_probe{
         double m_num_tsc_ticks_per_ns{};
         // store the last position in the buffer
         cache_line_node* m_cur_node{};
+        // @brief: count the number of steps to go from element 0 back to element 0
+        std::size_t count_steps_in_chain();
     public:
         // default constuctor
         cache_probe() = delete;
@@ -48,11 +51,13 @@ class cache_probe{
         // move assignment
         cache_probe& operator=(cache_probe&& neigh_cache_probe) = delete;
 
-        // generate a recommended buffer size
-        // static member --> can be called without a class instance
+        /*
+            @brief: generate a recommended buffer size
+                    static member --> can be called without a class instance
+        */
         static std::size_t rec_buffer_size();
 
-        // measure time of 1 load
+        // @brief: measure time of 1 load
         double measure_load();
 };
 

@@ -1,5 +1,33 @@
 #include "cache_probe.h"
 
+// tsc helpers private to this file
+// un-named namespace --> stuff inside is internal linkage
+namespace{
+    std::uint64_t tsc_start_helper(){
+        _mm_lfence();
+        std::uint64_t ticks = __rdtsc();
+        _mm_lfence();
+        return ticks;
+    }
+    std::uint64_t tsc_end_helper(unsigned int* aux){
+        std::uint64_t ticks = __rdtscp(aux);
+        _mm_lfence();
+        return ticks;
+    }
+}
+
+std::size_t cache_probe::count_steps_in_chain(){
+    std::size_t num_steps{};
+    const cache_line_node* cur_temp = &m_buffer[0];
+    while (num_steps < m_num_nodes){
+        const cache_line_node* next_node = cur_temp->next;
+        num_steps ++;
+        cur_temp = next_node;
+        if (cur_temp == &m_buffer[0]) break;
+    }
+    return num_steps;
+}
+
 cache_probe::cache_probe(std::size_t buffer_size){
     if (buffer_size < 4096 || buffer_size % g_cache_line_size != 0){
         throw std::invalid_argument("Invalid buffer size");
@@ -22,21 +50,20 @@ cache_probe::cache_probe(std::size_t buffer_size){
         std::size_t next_index = index_list[(index + 1) % m_num_nodes];
         m_buffer[cur_index].next = &m_buffer[next_index];
     }
-    m_cur_node = &m_buffer[0];
     // warm up lap
-    while (true){
-        cache_line_node* next_node = m_cur_node->next;
-        m_cur_node = next_node;
-        if (m_cur_node == &m_buffer[0]) break;
+    std::size_t num_steps = count_steps_in_chain();
+    if (num_steps != static_cast<std::size_t>(m_num_nodes)){
+        throw std::logic_error("chain is not a single cycle: " + std::to_string(num_steps)
+                       + " steps, expected " + std::to_string(m_num_nodes));
     }
     // calibrate the TSC frequency --> use to convert ticks to ns
     // how many TSC ticks per ns
     unsigned int aux{};
     auto clock_start = std::chrono::steady_clock::now();
-    auto tsc_start = __rdtsc();
+    auto tsc_start = tsc_start_helper();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     auto clock_end = std::chrono::steady_clock::now();
-    auto tsc_end = __rdtscp(&aux);
+    auto tsc_end = tsc_end_helper(&aux);
     m_num_tsc_ticks_per_ns = static_cast<double>(tsc_end - tsc_start) / std::chrono::duration<double, std::nano>(clock_end - clock_start).count();
     // # of nodes visited per call such that a call on a quite machine can last ~ 1ms
     // time the lap
@@ -57,49 +84,72 @@ cache_probe::cache_probe(std::size_t buffer_size){
 std::size_t cache_probe::rec_buffer_size(){
     fs::path folder_path{"/sys/devices/system/cpu/cpu0/cache/"};
     std::size_t l3_cache_size{};
-    try{
-        bool index_founded{};
-        bool size_founded{};
-        for (const auto& sub_folder : fs::directory_iterator(folder_path)){
-            if (index_founded && size_founded) break;
-            if (sub_folder.is_directory()){
-                std::string sub_folder_name{sub_folder.path().filename().string()};
-                if (sub_folder_name.starts_with("index")){
-                    // check for file "level"
+    bool index_founded{};
+    bool size_founded{};
+    for (const auto& sub_folder : fs::directory_iterator(folder_path)){
+        if (index_founded && size_founded) break;
+        if (sub_folder.is_directory()){
+            std::string sub_folder_name{sub_folder.path().filename().string()};
+            if (sub_folder_name.starts_with("index")){
+                // check for file "level"
+                for (const auto& file : fs::directory_iterator(sub_folder)){
+                    if (index_founded) break;
+                    if (file.is_regular_file()){
+                        std::string file_name{file.path().filename().string()};
+                        if (file_name == "level"){
+                            std::fstream file_stream(file.path(), std::ios::in);
+                            if (!file_stream.is_open()){
+                                throw std::runtime_error(std::format("Can not open file {}", file_name));
+                            }
+                            std::string line{};
+                            std::getline(file_stream, line);
+                            if (line == "3") index_founded = true;
+                        }
+                    }
+                }
+                if (index_founded){
                     for (const auto& file : fs::directory_iterator(sub_folder)){
                         if (size_founded) break;
                         if (file.is_regular_file()){
                             std::string file_name{file.path().filename().string()};
-                            if (file_name == "level"){
-                                std::fstream file_stream(file.path(), std::ios::in);
-                                if (!file_stream.is_open()){
-                                    throw std::runtime_error(std::format("Can not open file {}", file_name));
-                                }
-                                std::string line{};
-                                std::getline(file_stream, line);
-                                if (line == "3") index_founded = true;
-                            }
-                            if (index_founded && file_name == "size"){
+                            if (file_name == "size"){
                                 std::fstream file_stream{file.path(), std::ios::in};
                                 if (!file_stream.is_open()){
                                     throw std::runtime_error(std::format("Can not open file {}", file_name));
                                 }
                                 std::string line{};
                                 std::getline(file_stream, line);
-                                l3_cache_size = static_cast<std::size_t>(std::stoi(line.substr(0, line.length() - 1)) * 1024);
+                                std::size_t index = 0;
+                                std::string num_string{};
+                                std::string suffix{};
+                                while (index < line.length()){
+                                    if (std::isdigit(static_cast<unsigned char>(line[index]))){
+                                        num_string.push_back(line[index]);
+                                    }
+                                    else break;
+                                }
+                                while (index < line.length()){
+                                    suffix.push_back(line[index]);
+                                }
+                                if (num_string.empty() || (!suffix.empty() && suffix != "M" && suffix != "K")){
+                                    throw std::runtime_error("Invalid cache size");
+                                }
+                                std::size_t multiply{};
+                                if (suffix == "K") multiply = 1024;
+                                else if (suffix == "M") multiply = 1024 * 1024;
+                                else if (suffix.empty()) multiply = 1;
+                                l3_cache_size = static_cast<std::size_t>(std::stoi(num_string) * multiply);
                                 size_founded = true;
                             }
                         }
+                        if (!size_founded) index_founded = false;
                     }
                 }
             }
         }
-        if (!index_founded || !size_founded){
-            throw std::runtime_error("Can not determine L3 cache size");
-        }
     }
-    catch (const std::exception& e){
-        std::cerr << "File system error: " << e.what() << '\n';
+    if (!index_founded || !size_founded){
+        throw std::runtime_error("Can not determine L3 cache size");
     }
     return l3_cache_size / 2;
 }
