@@ -508,3 +508,77 @@ Phase 2:
     - as we can see, if we access the cache lines in a way that they compete for a set in the cache, then newer data will kickout older data --> then if we want to access older data, it will be a cache miss --> need to take them from lower cache level and bring back to l1 cache. This cache miss happens even when the cache still has tons of empty places.
     - if we access data such that they are spread across sets in l1 cache, then the cache miss issue is less servere as older data and newer data will both likely to have places on cache.
     - --> the noisy neighbor does not need to fill in the whole cache to hurt us, it can just hit the same cache set we are using.
+- benchmarking:
+    - sometimes we need precise and low-overhead measurements as the code we want to profile only executes in a few hundred CPU cycles.
+    - we need a way to read time directly from the hardware without leaving the user space:
+        - on x86 system, we have rdtsc instruction -- which can give us near-zero-overhead access to the CPU's internal timestamp counter.
+    - timestamp counter:
+        - in the x86 architecture, every CPU has a special 64-bit counter, which is the timestamp counter (TSC), that got incremented some number of times per second.
+        - if we read the value of the counter before and after the execution of a block of code --> we can tell how many cycles that code took to execute.
+        - to read tsc:
+            - we can use 2 instructions in x86: rdtsc and rdtscp.
+    - out-of-order execution:
+        - for accurate profiling, we need to handle out-of-order execution:
+            - a CPU can handle multiple instructions in parallel.
+            - it will look at a window of instructions in the instruction stream, identify independent instructions, and execute them in parallel.
+            - suppose we have a window of instructions:
+                                            I0, I1, I2, I3, rdtsc, I4, I5, I6, rdtsc,...
+                - we want to profile instr I4 to I6.
+                - but CPU can may execute rdtsc after I1, which means we will include I2 and I3 as well.
+                - --> we need to tell the CPU that not to execute rdtsc out of its order + ensure that all the previous instructions are finished before executing rdtsc.
+                - --> we need to serialize the instruction stream.
+    - serializing the instruction stream:
+        - the serializing instruction acts like a barrier:
+            - all instructions before it need to be fully executed.
+            - all instructions after it need to wait for it to finish executing.
+        - there are few serializing instructions (blocking instructions) in the x86 architecture, including cpuid.
+        - but cpuid creates a slight overhead, so using lfence instead.
+            - cpuid is slow, and it is very slow on VM as it is a guaranteed vmexit.
+        - lfence is a memory ordering instruction, but it serves the purpose of a barrier.
+    - lfence:
+        - lfence does not execute until all prior instructions have completed, and no later instruction begins execution until lfence completes.
+    - rdtsc vs rdtscp:
+        - rdtsc = read the TSC.
+        - rdtscp = read the TSC + wait for earlier instructions to finish before reading.
+    - lfence, rdtsc, and rdtscp are machine instructions.
+    - e.g.
+        ```
+            #include <x86intrin.h>
+
+            uint32_t cpuid;
+            _mm_lfence();
+            uint64_t start = __rdtsc();
+
+            for (int i = 0; i < ITERS; i++) {
+            // expensive loop body
+            }
+
+            uint64_t end = __rdtscp(&cpuid);
+            _mm_lfence();
+            uint64_t ncycles = end - start;
+        ```
+    - CPU frequency != TSC frequency --> 1 TSC tick != 1 cycle.
+    - system calls are expensive -- it can take hundreds of cycles.
+    - TSC frequency = how many times the timestamp counter goes up by one each second.
+    - CPU frequency = how many clock cycles the core performs each second.
+    - converting TSC ticks into nanoseconds is messy --> don't do it at all or let the OS do that.
+    - if we need nanoseconds --> use clock_time or std::chrono.
+        - they are not slow at all because they dont use system calls
+        - instead, they use rdtsc under the hood and use a ratio at boot time to give the accurate nanoseconds.
+- daemon/cache_probe:
+    - first real component of the daemon.
+    - a building block that the daemon will call every 100ms to answer "right now, how long does one load from my buffer take?"
+        - when we use probe to access the buffer, its data will be brought into cache.
+        - if there is another neighbor taking the cache --> some data of the buffer will be kicked out --> loadtime will be bigger next time.
+    - as the gap between calls is 100ms --> the probe needs to run fast.
+        - the cache probe will run for 1ms.
+    - cache sizes of different machines are different --> let the caller decide the buffer size for cache probe.
+    - setup and allocate the buffer is expensive, while measuring is cheap --> use class to put setting up into constructor --> the caller creates the class instance once --> the set up is done once.
+    - don't restart to node 0 after each call, instead, let the call continue with where it left off last time.
+        - e.g. 
+            - if there are too many nodes that we can not iterate through them all in one call --> the rest of the buffer will never be iterated through.
+            - thats bad because we will only iterate through the hot data --> if the rest got kicked out by the neighbor --> we will not know.
+    - as L1 and L2 are private --> will not be used to detect neighbors.
+    - L3 is shared --> will be used to detect neighbors.
+    - do warmup in constructor only, don't do warmup in every call --> we will bring the whole buffer to cache --> can not test anything.
+- static member of class in c++ = a member that we can call without instantiating a class instance.
