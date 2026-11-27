@@ -14,6 +14,7 @@
 #include <thread>
 #include <cctype>
 #include <algorithm>
+#include <cmath>
 
 namespace fs = std::filesystem;
 
@@ -23,6 +24,7 @@ constexpr std::size_t g_cache_line_size = 64;
 /*
     caller will call cache_probe every 100ms.
     caller will decide the buffer size.
+    no warm-up between calls.
 */
 class cache_probe{
     private:
@@ -32,13 +34,13 @@ class cache_probe{
         std::size_t m_buffer_size{};
         std::size_t m_num_nodes{};
         std::vector<cache_line_node> m_buffer{};
-        // how many calls should the host make to fit 1ms
+        // how many loads per call should the host make to fit 1ms
         std::size_t m_loads_per_call{};
         double m_num_tsc_ticks_per_ns{};
         // store the last position in the buffer
         cache_line_node* m_cur_node{};
         // @brief: count the number of steps to go from element 0 back to element 0
-        std::size_t count_steps_in_chain();
+        std::size_t count_steps_in_chain() const;
         // @brief: helper to time each load on avg
         double chase_ns_per_load(std::size_t num_loads);
     public:
@@ -62,7 +64,7 @@ class cache_probe{
         static std::size_t rec_buffer_size();
 
         /*
-            @brief: measure time of 1 load
+            @brief: measure avg time of a load
             tldr: 
                 - continue the random chase from wherever
                 the last call stopped.
