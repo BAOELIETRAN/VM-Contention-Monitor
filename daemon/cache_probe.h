@@ -13,6 +13,7 @@
 #include <x86intrin.h>
 #include <thread>
 #include <cctype>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -31,17 +32,20 @@ class cache_probe{
         std::size_t m_buffer_size{};
         std::size_t m_num_nodes{};
         std::vector<cache_line_node> m_buffer{};
+        // how many calls should the host make to fit 1ms
         std::size_t m_loads_per_call{};
         double m_num_tsc_ticks_per_ns{};
         // store the last position in the buffer
         cache_line_node* m_cur_node{};
         // @brief: count the number of steps to go from element 0 back to element 0
         std::size_t count_steps_in_chain();
+        // @brief: helper to time each load on avg
+        double chase_ns_per_load(std::size_t num_loads);
     public:
         // default constuctor
         cache_probe() = delete;
         // parameterized constructor
-        cache_probe(std::size_t buffer_size);
+        explicit cache_probe(std::size_t buffer_size);
         // copy constructor
         cache_probe(const cache_probe& neigh_cache_probe) = delete;
         // move constructor
@@ -57,7 +61,15 @@ class cache_probe{
         */
         static std::size_t rec_buffer_size();
 
-        // @brief: measure time of 1 load
+        /*
+            @brief: measure time of 1 load
+            tldr: 
+                - continue the random chase from wherever
+                the last call stopped.
+                - does exactly m_loads_per_call loads, which
+                takes about 1ms on a quiet machine
+                - return avg ns per load for the chase.
+        */
         double measure_load();
 };
 

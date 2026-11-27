@@ -14,6 +14,10 @@ namespace{
         _mm_lfence();
         return ticks;
     }
+    // calib test length -- min # of nodes to test
+    constexpr std::size_t g_min_calib_loads = 100000;
+    // max # of nodes to test
+    constexpr std::size_t g_max_calib_loads = 4000000;
 }
 
 std::size_t cache_probe::count_steps_in_chain(){
@@ -26,6 +30,22 @@ std::size_t cache_probe::count_steps_in_chain(){
         if (cur_temp == &m_buffer[0]) break;
     }
     return num_steps;
+}
+
+// 1 load = 1 node visited
+double cache_probe::chase_ns_per_load(std::size_t num_loads){
+    unsigned int aux{};
+    auto lap_start_time = tsc_start_helper();
+    std::size_t counter{};
+    while (counter < num_loads){
+        cache_line_node* next_node = m_cur_node->next;
+        m_cur_node = next_node;
+        counter ++;
+    }
+    auto lap_end_time = tsc_end_helper(&aux);
+    double lap_time = (lap_end_time - lap_start_time) * m_num_tsc_ticks_per_ns;
+    double time_per_load = lap_time / num_loads;
+    return time_per_load;
 }
 
 cache_probe::cache_probe(std::size_t buffer_size){
@@ -65,19 +85,12 @@ cache_probe::cache_probe(std::size_t buffer_size){
     auto clock_end = std::chrono::steady_clock::now();
     auto tsc_end = tsc_end_helper(&aux);
     m_num_tsc_ticks_per_ns = static_cast<double>(tsc_end - tsc_start) / std::chrono::duration<double, std::nano>(clock_end - clock_start).count();
-    // # of nodes visited per call such that a call on a quite machine can last ~ 1ms
+    // # of nodes visited per call such that a call on a quiet machine can last ~ 1ms
     // time the lap
-    auto lap_start_time = std::chrono::steady_clock::now();
     m_cur_node = &m_buffer[0];
-    while (true){
-        cache_line_node* next_node = m_cur_node->next;
-        m_cur_node = next_node;
-        if (m_cur_node == &m_buffer[0]) break;
-    }
-    auto lap_end_time = std::chrono::steady_clock::now();
-    double lap_time = std::chrono::duration<double, std::nano>(lap_end_time - lap_start_time).count();
-    double time_per_load = lap_time / m_num_nodes;
-    m_loads_per_call = static_cast<std::size_t>(1000000 / time_per_load);
+    std::size_t calib_loads{std::clamp(m_num_nodes, g_min_calib_loads, g_max_calib_loads)};
+    double cur_time_per_load = chase_ns_per_load(calib_loads);
+    m_loads_per_call = static_cast<std::size_t>(1000000 / cur_time_per_load);
     m_cur_node = &m_buffer[0];
 }
 
@@ -125,11 +138,13 @@ std::size_t cache_probe::rec_buffer_size(){
                                 while (index < line.length()){
                                     if (std::isdigit(static_cast<unsigned char>(line[index]))){
                                         num_string.push_back(line[index]);
+                                        index ++;
                                     }
                                     else break;
                                 }
                                 while (index < line.length()){
                                     suffix.push_back(line[index]);
+                                    index ++;
                                 }
                                 if (num_string.empty() || (!suffix.empty() && suffix != "M" && suffix != "K")){
                                     throw std::runtime_error("Invalid cache size");
@@ -138,13 +153,13 @@ std::size_t cache_probe::rec_buffer_size(){
                                 if (suffix == "K") multiply = 1024;
                                 else if (suffix == "M") multiply = 1024 * 1024;
                                 else if (suffix.empty()) multiply = 1;
-                                l3_cache_size = static_cast<std::size_t>(std::stoi(num_string) * multiply);
+                                l3_cache_size = static_cast<std::size_t>(std::stoull(num_string) * multiply);
                                 size_founded = true;
                             }
                         }
-                        if (!size_founded) index_founded = false;
                     }
                 }
+                if (!size_founded) index_founded = false;
             }
         }
     }
@@ -152,4 +167,9 @@ std::size_t cache_probe::rec_buffer_size(){
         throw std::runtime_error("Can not determine L3 cache size");
     }
     return l3_cache_size / 2;
+}
+
+double cache_probe::measure_load(){
+    double cur_ns_per_load = chase_ns_per_load(m_loads_per_call);
+    return cur_ns_per_load;
 }

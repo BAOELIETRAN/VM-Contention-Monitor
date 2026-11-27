@@ -582,3 +582,7 @@ Phase 2:
     - L3 is shared --> will be used to detect neighbors.
     - do warmup in constructor only, don't do warmup in every call --> we will bring the whole buffer to cache --> can not test anything.
 - static member of class in c++ = a member that we can call without instantiating a class instance.
+- std::clamp(val, low, high) return:
+    - if val < low --> low
+    - if low <= val <= high --> val
+    - if val > high --> high
