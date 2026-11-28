@@ -1,0 +1,15 @@
+== size=1 MB ==
+TSC freq (GHz): 3.30239
+Num loads per call: 24000
+== size=4 MB ==
+TSC freq (GHz): 3.30239
+Num loads per call: 11000
+== size=8 MB ==
+TSC freq (GHz): 3.30239
+Num loads per call: 6000
+== size=16 MB ==
+TSC freq (GHz): 3.30239
+Num loads per call: 7000
+== size=default (rec_buffer_size) ==
+TSC freq (GHz): 3.30239
+Num loads per call: 8000

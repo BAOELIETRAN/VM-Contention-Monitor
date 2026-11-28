@@ -57,6 +57,13 @@ class cache_probe{
         // move assignment
         cache_probe& operator=(cache_probe&& neigh_cache_probe) = delete;
 
+        // getters
+        std::size_t get_buffer_size() const{ return m_buffer_size; }
+
+        std::size_t get_num_loads_per_call() const{ return m_loads_per_call; }        
+
+        double get_tsc_freq() const{ return m_num_tsc_ticks_per_ns; }
+
         /*
             @brief: generate a recommended buffer size
                     static member --> can be called without a class instance

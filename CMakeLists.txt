@@ -21,6 +21,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(branch bench/branch.cpp)
 add_executable(chase bench/chase.cpp)
 add_executable(l1_assoc bench/l1_assoc.cpp)
+add_executable(probe_stability bench/probe_stability.cpp)
 
 add_library(cache_probe daemon/cache_probe.cpp)
 target_include_directories(cache_probe PUBLIC daemon)
@@ -29,6 +30,8 @@ target_compile_options(branch PRIVATE -O2 -Wall -Wextra)
 target_compile_options(chase PRIVATE -O2 -Wall -Wextra)
 target_compile_options(l1_assoc PRIVATE -O2 -Wall -Wextra)
 target_compile_options(cache_probe PRIVATE -O2 -Wall -Wextra)
+target_compile_options(probe_stability PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(probe_stability PRIVATE cache_probe)
 
 # run the CMake file:
 # cmake -S . -B build

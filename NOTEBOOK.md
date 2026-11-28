@@ -586,3 +586,30 @@ Phase 2:
     - if val < low --> low
     - if low <= val <= high --> val
     - if val > high --> high
+- analyze probe_stability.log:
+    - we run the cache_probe and store data of different metrics to see how is the machine running when it is quiet.
+    - then, later on, if there is a neighbor coming in, there would be competition --> metrics (for shared cache L3) will be changed.
+        - e.g. probe_stability.csv: 100 calls per buffer size.
+            - median ns_per_load rises:
+                - a few random spikes (interrupts, OS) barely move the median,
+                because it is the middle value of the sorted results.
+                - a neighbor evicts our buffer during the gap --> MOST calls get slower
+                --> the middle value moves up --> the median rises.
+            - cv_percent = across the 100 calls, how far a call typically is from the average,
+            as a % of the average.
+                - 1%: the calls are almost the same every time --> steady probe.
+                - high (e.g. 30%): the calls vary a lot --> the neighbor evicts a different
+                amount in each gap, or there are spikes.
+                - careful: a few big spikes alone can also raise cv_percent
+                --> always check it together with the median and the plot.
+    - if the host runs other apps while running the cache probe also cause the changes in metrics.
+        - the machine is not completely quiet as it has tons of other programs running, competing for shared resources like L3.
+    - --> this cache probe can only provide the sign of the shared resource is being competed, not the final decision.
+    - when we wait for 100ms between calls:
+        - the computer uses the core to run other tasks.
+            - --> buffer data in L1 and L2 got kicked out -->  the raise in time for the next load.
+        - or if the core does not run anything 
+            - --> the core will go to the deep sleep state --> to save power, CPU switches off the private caches of that core --> all data got kicked out.
+        - fix: keep the core always busy with our program.
+            - but this is not feasible for the daemon, as the daemon is a background helper --> can not keep the core all the time.
+- some files in linux are read only --> read them with fstream with std::ios::in.
